@@ -5,13 +5,16 @@ services:
     build: .
     ports:
       - "8080:8080"
-    env_file:
-      - .env
+    environment:
+      - PORT=8080
+      - MONGO_URL=mongodb://root:example@mongo:27017
+      - MONGO_DATABASE=sueta
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-test_token}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:8080/webhook}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-test_key}
     depends_on:
       - mongo
     restart: unless-stopped
-    volumes:
-      - ./.env:/root/.env:ro
 
   mongo:
     image: mongo:7-jammy

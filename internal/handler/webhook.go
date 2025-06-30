@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/semyon-ancherbak/sueta/internal/models"
+	"github.com/semyon-ancherbak/sueta/internal/repository"
 )
 
 // TelegramUpdate представляет обновление от Telegram API
@@ -45,12 +48,14 @@ type Chat struct {
 
 // WebhookHandler обрабатывает входящие webhook от Telegram
 type WebhookHandler struct {
-	// В будущем здесь будут зависимости для работы с БД и LLM
+	repo repository.Repository
 }
 
 // NewWebhookHandler создает новый экземпляр WebhookHandler
-func NewWebhookHandler() *WebhookHandler {
-	return &WebhookHandler{}
+func NewWebhookHandler(repo repository.Repository) *WebhookHandler {
+	return &WebhookHandler{
+		repo: repo,
+	}
 }
 
 // SetupRouter настраивает маршруты для webhook
@@ -103,6 +108,17 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 	}
 
 	msg := update.Message
+	ctx := context.Background()
+
+	// Сохраняем чат (если он еще не существует)
+	if err := h.saveChat(ctx, msg.Chat, msg.From); err != nil {
+		log.Printf("Ошибка сохранения чата: %v", err)
+	}
+
+	// Сохраняем сообщение
+	if err := h.saveMessage(ctx, update); err != nil {
+		log.Printf("Ошибка сохранения сообщения: %v", err)
+	}
 
 	// Форматированный вывод информации о сообщении
 	fmt.Printf("\n=== НОВОЕ СООБЩЕНИЕ ===\n")
@@ -134,6 +150,76 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 	// Также логируем в стандартный лог
 	log.Printf("Получено сообщение от %s: %s",
 		getUserName(msg.From), msg.Text)
+}
+
+// saveChat сохраняет информацию о чате
+func (h *WebhookHandler) saveChat(ctx context.Context, chat *Chat, user *User) error {
+	if chat == nil {
+		return nil
+	}
+
+	// Проверяем, существует ли чат
+	exists, err := h.repo.ChatExists(ctx, chat.ID)
+	if err != nil {
+		return fmt.Errorf("ошибка проверки существования чата: %w", err)
+	}
+
+	if exists {
+		log.Printf("Чат %d уже существует, пропускаем сохранение", chat.ID)
+		return nil
+	}
+
+	chatDoc := &models.ChatDocument{
+		ChatID: chat.ID,
+		Type:   chat.Type,
+		Title:  chat.Title,
+	}
+
+	// Для приватных чатов добавляем информацию о пользователе
+	if chat.Type == "private" && user != nil {
+		chatDoc.Username = user.Username
+		chatDoc.FirstName = user.FirstName
+		chatDoc.LastName = user.LastName
+	}
+
+	if err := h.repo.SaveChat(ctx, chatDoc); err != nil {
+		return fmt.Errorf("ошибка сохранения чата: %w", err)
+	}
+
+	log.Printf("Сохранен новый чат: ID=%d, Type=%s", chat.ID, chat.Type)
+	return nil
+}
+
+// saveMessage сохраняет сообщение
+func (h *WebhookHandler) saveMessage(ctx context.Context, update *TelegramUpdate) error {
+	msg := update.Message
+	if msg == nil {
+		return nil
+	}
+
+	messageDoc := &models.MessageDocument{
+		MessageID: msg.MessageID,
+		ChatID:    msg.Chat.ID,
+		Text:      msg.Text,
+		Date:      time.Unix(msg.Date, 0),
+		UpdateID:  update.UpdateID,
+	}
+
+	// Добавляем информацию о пользователе
+	if msg.From != nil {
+		messageDoc.UserID = msg.From.ID
+		messageDoc.Username = msg.From.Username
+		messageDoc.FirstName = msg.From.FirstName
+		messageDoc.LastName = msg.From.LastName
+		messageDoc.IsBot = msg.From.IsBot
+	}
+
+	if err := h.repo.SaveMessage(ctx, messageDoc); err != nil {
+		return fmt.Errorf("ошибка сохранения сообщения: %w", err)
+	}
+
+	log.Printf("Сохранено сообщение: ID=%d, ChatID=%d", msg.MessageID, msg.Chat.ID)
+	return nil
 }
 
 // getUserName возвращает отформатированное имя пользователя
