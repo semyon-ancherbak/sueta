@@ -37,6 +37,17 @@ func (m *MockRepository) ChatExists(ctx context.Context, chatID int64) (bool, er
 	return m.chats[chatID], nil
 }
 
+func (m *MockRepository) GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error) {
+	var result []*models.MessageDocument
+	for _, msg := range m.messages {
+		if msg.ChatID == chatID {
+			msgCopy := msg
+			result = append(result, &msgCopy)
+		}
+	}
+	return result, nil
+}
+
 func (m *MockRepository) Close(ctx context.Context) error {
 	return nil
 }
@@ -45,8 +56,8 @@ func TestHandleWebhook(t *testing.T) {
 	// Создаем mock repository
 	mockRepo := NewMockRepository()
 
-	// Создаем handler
-	handler := NewWebhookHandler(mockRepo)
+	// Создаем handler (без LLM и Telegram клиентов для простого теста)
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
 
 	// Подготавливаем тестовые данные
 	testUpdate := `{
@@ -100,7 +111,7 @@ func TestHandleWebhookInvalidJSON(t *testing.T) {
 	// Создаем mock repository
 	mockRepo := NewMockRepository()
 
-	handler := NewWebhookHandler(mockRepo)
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
 
 	// Невалидный JSON
 	invalidJSON := `{"update_id": 123, "message": {invalid}`
@@ -124,7 +135,7 @@ func TestHandleWebhookInvalidJSON(t *testing.T) {
 func TestChatNotDuplicatedOnMultipleMessages(t *testing.T) {
 	// Создаем mock repository
 	mockRepo := NewMockRepository()
-	handler := NewWebhookHandler(mockRepo)
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
 
 	// Первое сообщение
 	testUpdate1 := `{

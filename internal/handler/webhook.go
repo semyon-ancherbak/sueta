@@ -7,12 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/semyon-ancherbak/sueta/internal/llm"
 	"github.com/semyon-ancherbak/sueta/internal/models"
 	"github.com/semyon-ancherbak/sueta/internal/repository"
+	"github.com/semyon-ancherbak/sueta/internal/telegram"
 )
 
 // TelegramUpdate представляет обновление от Telegram API
@@ -48,13 +51,19 @@ type Chat struct {
 
 // WebhookHandler обрабатывает входящие webhook от Telegram
 type WebhookHandler struct {
-	repo repository.Repository
+	repo        repository.Repository
+	llmClient   *llm.Client
+	telegramBot *telegram.Client
+	botName     string
 }
 
 // NewWebhookHandler создает новый экземпляр WebhookHandler
-func NewWebhookHandler(repo repository.Repository) *WebhookHandler {
+func NewWebhookHandler(repo repository.Repository, llmClient *llm.Client, telegramBot *telegram.Client, botName string) *WebhookHandler {
 	return &WebhookHandler{
-		repo: repo,
+		repo:        repo,
+		llmClient:   llmClient,
+		telegramBot: telegramBot,
+		botName:     botName,
 	}
 }
 
@@ -68,13 +77,35 @@ func (h *WebhookHandler) SetupRouter() *chi.Mux {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// Webhook endpoint
-	r.Post("/webhook", h.HandleWebhook)
+	r.Post("/webhook/{token}", h.HandleWebhook)
 
 	return r
 }
 
 // HandleWebhook обрабатывает входящие обновления от Telegram
 func (h *WebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
+	// Проверяем токен в URL
+	token := chi.URLParam(r, "token")
+
+	// Извлекаем часть токена после двоеточия
+	fullToken := h.telegramBot.GetToken()
+	parts := strings.Split(fullToken, ":")
+	var expectedToken string
+	if len(parts) == 2 {
+		expectedToken = parts[1] // Берем часть после двоеточия
+	} else {
+		expectedToken = fullToken // Если нет двоеточия, используем весь токен
+	}
+
+	if token != expectedToken {
+		log.Printf("Неверный токен в webhook URL: получен '%s', ожидался '%s'", token, expectedToken)
+		log.Printf("Полный токен бота: '%s'", fullToken)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	log.Printf("Токен проверен успешно: '%s'", token)
+
 	// Читаем тело запроса
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -120,6 +151,14 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 		log.Printf("Ошибка сохранения сообщения: %v", err)
 	}
 
+	// Проверяем, адресовано ли сообщение боту
+	if h.isMessageForBot(msg.Text) {
+		log.Printf("Сообщение адресовано боту, обрабатываем через LLM")
+		if err := h.handleBotMessage(ctx, msg); err != nil {
+			log.Printf("Ошибка обработки сообщения через LLM: %v", err)
+		}
+	}
+
 	// Форматированный вывод информации о сообщении
 	fmt.Printf("\n=== НОВОЕ СООБЩЕНИЕ ===\n")
 	fmt.Printf("Update ID: %d\n", update.UpdateID)
@@ -150,6 +189,46 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 	// Также логируем в стандартный лог
 	log.Printf("Получено сообщение от %s: %s",
 		getUserName(msg.From), msg.Text)
+}
+
+// isMessageForBot проверяет, адресовано ли сообщение боту
+func (h *WebhookHandler) isMessageForBot(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	// Проверяем наличие имени бота (регистронезависимо)
+	lowerText := strings.ToLower(text)
+	lowerBotName := strings.ToLower(h.botName)
+
+	return strings.Contains(lowerText, lowerBotName)
+}
+
+// handleBotMessage обрабатывает сообщение, адресованное боту
+func (h *WebhookHandler) handleBotMessage(ctx context.Context, msg *Message) error {
+	// Получаем сообщения за последние 3 дня
+	recentMessages, err := h.repo.GetRecentMessages(ctx, msg.Chat.ID, 3)
+	if err != nil {
+		return fmt.Errorf("ошибка получения истории сообщений: %w", err)
+	}
+
+	log.Printf("Найдено %d сообщений за последние 3 дня", len(recentMessages))
+
+	// Генерируем ответ через LLM
+	response, err := h.llmClient.GenerateResponse(ctx, recentMessages, msg.Text)
+	if err != nil {
+		return fmt.Errorf("ошибка генерации ответа LLM: %w", err)
+	}
+
+	log.Printf("LLM ответ: %s", response)
+
+	// Отправляем ответ в Telegram
+	if err := h.telegramBot.SendMessage(ctx, msg.Chat.ID, response, msg.MessageID); err != nil {
+		return fmt.Errorf("ошибка отправки сообщения в Telegram: %w", err)
+	}
+
+	log.Printf("Ответ отправлен в чат %d", msg.Chat.ID)
+	return nil
 }
 
 // saveChat сохраняет информацию о чате

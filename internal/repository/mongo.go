@@ -15,6 +15,7 @@ type Repository interface {
 	SaveChat(ctx context.Context, chat *models.ChatDocument) error
 	SaveMessage(ctx context.Context, message *models.MessageDocument) error
 	ChatExists(ctx context.Context, chatID int64) (bool, error)
+	GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error)
 	Close(ctx context.Context) error
 }
 
@@ -90,7 +91,6 @@ func (r *MongoRepository) createIndexes(ctx context.Context) error {
 	if _, err := r.messages.Indexes().CreateOne(ctx, chatIDIndex); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -139,6 +139,36 @@ func (r *MongoRepository) ChatExists(ctx context.Context, chatID int64) (bool, e
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetRecentMessages получает сообщения за последние N дней
+func (r *MongoRepository) GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error) {
+	// Вычисляем дату начала периода
+	since := time.Now().AddDate(0, 0, -days)
+
+	// Создаем фильтр для поиска
+	filter := bson.M{
+		"chat_id": chatID,
+		"date": bson.M{
+			"$gte": since,
+		},
+	}
+
+	// Сортируем по дате (старые сообщения первыми)
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: 1}})
+
+	cursor, err := r.messages.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []*models.MessageDocument
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
 }
 
 // Close закрывает соединение с MongoDB

@@ -1,0 +1,57 @@
+package handler
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestWebhookHandler_isMessageForBot(t *testing.T) {
+	handler := &WebhookHandler{
+		botName: "Толик",
+	}
+
+	tests := []struct {
+		name     string
+		message  string
+		expected bool
+	}{
+		{
+			name:     "Message with bot name",
+			message:  "Привет, Толик!",
+			expected: true,
+		},
+		{
+			name:     "Message with bot name in different case",
+			message:  "толик, как дела?",
+			expected: true,
+		},
+		{
+			name:     "Message with bot name in middle",
+			message:  "Эй Толик расскажи анекдот",
+			expected: true,
+		},
+		{
+			name:     "Message without bot name",
+			message:  "Привет всем!",
+			expected: false,
+		},
+		{
+			name:     "Empty message",
+			message:  "",
+			expected: false,
+		},
+		{
+			name:     "Message with similar name",
+			message:  "Анатолий хороший человек",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.isMessageForBot(tt.message)
+			assert.Equal(t, tt.expected, result, "Expected %v for message: %s", tt.expected, tt.message)
+		})
+	}
+}
