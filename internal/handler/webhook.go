@@ -26,11 +26,12 @@ type TelegramUpdate struct {
 
 // Message представляет сообщение в Telegram
 type Message struct {
-	MessageID int    `json:"message_id"`
-	From      *User  `json:"from,omitempty"`
-	Chat      *Chat  `json:"chat,omitempty"`
-	Date      int64  `json:"date"`
-	Text      string `json:"text,omitempty"`
+	MessageID      int      `json:"message_id"`
+	From           *User    `json:"from,omitempty"`
+	Chat           *Chat    `json:"chat,omitempty"`
+	Date           int64    `json:"date"`
+	Text           string   `json:"text,omitempty"`
+	ReplyToMessage *Message `json:"reply_to_message,omitempty"`
 }
 
 // User представляет пользователя Telegram
@@ -84,27 +85,29 @@ func (h *WebhookHandler) SetupRouter() *chi.Mux {
 
 // HandleWebhook обрабатывает входящие обновления от Telegram
 func (h *WebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Проверяем токен в URL
-	token := chi.URLParam(r, "token")
+	// Проверяем токен в URL только если есть Telegram клиент
+	if h.telegramBot != nil {
+		token := chi.URLParam(r, "token")
 
-	// Извлекаем часть токена после двоеточия
-	fullToken := h.telegramBot.GetToken()
-	parts := strings.Split(fullToken, ":")
-	var expectedToken string
-	if len(parts) == 2 {
-		expectedToken = parts[1] // Берем часть после двоеточия
-	} else {
-		expectedToken = fullToken // Если нет двоеточия, используем весь токен
+		// Извлекаем часть токена после двоеточия
+		fullToken := h.telegramBot.GetToken()
+		parts := strings.Split(fullToken, ":")
+		var expectedToken string
+		if len(parts) == 2 {
+			expectedToken = parts[1] // Берем часть после двоеточия
+		} else {
+			expectedToken = fullToken // Если нет двоеточия, используем весь токен
+		}
+
+		if token != expectedToken {
+			log.Printf("Неверный токен в webhook URL: получен '%s', ожидался '%s'", token, expectedToken)
+			log.Printf("Полный токен бота: '%s'", fullToken)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		log.Printf("Токен проверен успешно: '%s'", token)
 	}
-
-	if token != expectedToken {
-		log.Printf("Неверный токен в webhook URL: получен '%s', ожидался '%s'", token, expectedToken)
-		log.Printf("Полный токен бота: '%s'", fullToken)
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	log.Printf("Токен проверен успешно: '%s'", token)
 
 	// Читаем тело запроса
 	body, err := io.ReadAll(r.Body)
@@ -152,7 +155,7 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 	}
 
 	// Проверяем, адресовано ли сообщение боту
-	if h.isMessageForBot(msg.Text) {
+	if h.isMessageForBot(msg) {
 		log.Printf("Сообщение адресовано боту, обрабатываем через LLM")
 		if err := h.handleBotMessage(ctx, msg); err != nil {
 			log.Printf("Ошибка обработки сообщения через LLM: %v", err)
@@ -192,16 +195,62 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 }
 
 // isMessageForBot проверяет, адресовано ли сообщение боту
-func (h *WebhookHandler) isMessageForBot(text string) bool {
+func (h *WebhookHandler) isMessageForBot(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
+
+	// Проверяем, является ли это ответом на сообщение бота
+	if h.isReplyToBot(msg) {
+		log.Printf("Сообщение является ответом на сообщение бота")
+		return true
+	}
+
+	// Проверяем наличие склонений имени "толик" (регистронезависимо)
+	if h.containsTolikVariation(msg.Text) {
+		log.Printf("Сообщение содержит обращение к Толику")
+		return true
+	}
+
+	return false
+}
+
+// isReplyToBot проверяет, является ли сообщение ответом на сообщение бота
+func (h *WebhookHandler) isReplyToBot(msg *Message) bool {
+	if msg.ReplyToMessage == nil || msg.ReplyToMessage.From == nil {
+		return false
+	}
+
+	// Проверяем, что отвечаем на сообщение бота
+	return msg.ReplyToMessage.From.IsBot
+}
+
+// containsTolikVariation проверяет содержит ли текст любое склонение имени "толик"
+func (h *WebhookHandler) containsTolikVariation(text string) bool {
 	if text == "" {
 		return false
 	}
 
-	// Проверяем наличие имени бота (регистронезависимо)
 	lowerText := strings.ToLower(text)
-	lowerBotName := strings.ToLower(h.botName)
 
-	return strings.Contains(lowerText, lowerBotName)
+	// Список склонений имени "толик"
+	tolikVariations := []string{
+		"толик",   // именительный падеж
+		"толика",  // родительный падеж
+		"толику",  // дательный падеж
+		"толиком", // творительный падеж
+		"толике",  // предложный падеж
+		"толь",    // сокращение
+		"толя",    // альтернативная форма
+	}
+
+	for _, variation := range tolikVariations {
+		if strings.Contains(lowerText, variation) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // handleBotMessage обрабатывает сообщение, адресованное боту
@@ -223,11 +272,15 @@ func (h *WebhookHandler) handleBotMessage(ctx context.Context, msg *Message) err
 	log.Printf("LLM ответ: %s", response)
 
 	// Отправляем ответ в Telegram
-	if err := h.telegramBot.SendMessage(ctx, msg.Chat.ID, response, msg.MessageID); err != nil {
-		return fmt.Errorf("ошибка отправки сообщения в Telegram: %w", err)
+	if h.telegramBot != nil {
+		if err := h.telegramBot.SendMessage(ctx, msg.Chat.ID, response, msg.MessageID); err != nil {
+			return fmt.Errorf("ошибка отправки сообщения в Telegram: %w", err)
+		}
+		log.Printf("Ответ отправлен в чат %d", msg.Chat.ID)
+	} else {
+		log.Printf("Telegram клиент не инициализирован, ответ не отправлен")
 	}
 
-	log.Printf("Ответ отправлен в чат %d", msg.Chat.ID)
 	return nil
 }
 

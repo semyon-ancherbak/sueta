@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/semyon-ancherbak/sueta/internal/models"
+	"github.com/semyon-ancherbak/sueta/internal/repository"
 )
 
 // Client представляет клиент для работы с Telegram Bot API
@@ -15,16 +18,18 @@ type Client struct {
 	token      string
 	baseURL    string
 	httpClient *http.Client
+	repo       repository.Repository // Добавляем репозиторий для сохранения сообщений
 }
 
 // NewClient создает новый экземпляр Telegram клиента
-func NewClient(token string) *Client {
+func NewClient(token string, repo repository.Repository) *Client {
 	return &Client{
 		token:   token,
 		baseURL: "https://api.telegram.org/bot" + token,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		repo: repo,
 	}
 }
 
@@ -120,6 +125,47 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, rep
 		return fmt.Errorf("Telegram API вернул ошибку %d: %s", response.ErrorCode, response.Description)
 	}
 
+	// Сохраняем отправленное сообщение в базу данных
+	if response.Result != nil {
+		if err := c.saveBotMessage(ctx, response.Result, text); err != nil {
+			// Логируем ошибку, но не возвращаем её, так как сообщение уже отправлено
+			fmt.Printf("Ошибка сохранения сообщения бота: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// saveBotMessage сохраняет сообщение от бота в базу данных
+func (c *Client) saveBotMessage(ctx context.Context, msg *Message, text string) error {
+	if msg == nil || c.repo == nil {
+		return nil
+	}
+
+	messageDoc := &models.MessageDocument{
+		MessageID: msg.MessageID,
+		ChatID:    msg.Chat.ID,
+		Text:      text,
+		Date:      time.Unix(msg.Date, 0),
+		UpdateID:  0,    // Для сообщений бота UpdateID = 0
+		IsBot:     true, // Помечаем как сообщение от бота
+		CreatedAt: time.Now(),
+	}
+
+	// Добавляем информацию о боте как пользователе
+	if msg.From != nil {
+		messageDoc.UserID = msg.From.ID
+		messageDoc.Username = msg.From.Username
+		messageDoc.FirstName = msg.From.FirstName
+		messageDoc.LastName = msg.From.LastName
+	}
+
+	if err := c.repo.SaveMessage(ctx, messageDoc); err != nil {
+		return fmt.Errorf("ошибка сохранения сообщения бота: %w", err)
+	}
+
+	fmt.Printf("Сохранено сообщение бота: ID=%d, ChatID=%d, Text=%s\n",
+		msg.MessageID, msg.Chat.ID, text)
 	return nil
 }
 

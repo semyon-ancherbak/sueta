@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWebhookHandler_isMessageForBot(t *testing.T) {
+func TestWebhookHandler_containsTolikVariation(t *testing.T) {
 	handler := &WebhookHandler{
 		botName: "Толик",
 	}
@@ -50,7 +50,7 @@ func TestWebhookHandler_isMessageForBot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handler.isMessageForBot(tt.message)
+			result := handler.containsTolikVariation(tt.message)
 			assert.Equal(t, tt.expected, result, "Expected %v for message: %s", tt.expected, tt.message)
 		})
 	}
