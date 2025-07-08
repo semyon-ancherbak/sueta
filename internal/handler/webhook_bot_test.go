@@ -8,7 +8,7 @@ import (
 
 func TestWebhookHandler_containsTolikVariation(t *testing.T) {
 	handler := &WebhookHandler{
-		botName: "Толик",
+		botName: "Жорик",
 	}
 
 	tests := []struct {
@@ -18,17 +18,17 @@ func TestWebhookHandler_containsTolikVariation(t *testing.T) {
 	}{
 		{
 			name:     "Message with bot name",
-			message:  "Привет, Толик!",
+			message:  "Привет, Жорик!",
 			expected: true,
 		},
 		{
 			name:     "Message with bot name in different case",
-			message:  "толик, как дела?",
+			message:  "жорик, как дела?",
 			expected: true,
 		},
 		{
 			name:     "Message with bot name in middle",
-			message:  "Эй Толик расскажи анекдот",
+			message:  "Эй Жорик расскажи анекдот",
 			expected: true,
 		},
 		{

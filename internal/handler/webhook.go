@@ -206,9 +206,9 @@ func (h *WebhookHandler) isMessageForBot(msg *Message) bool {
 		return true
 	}
 
-	// Проверяем наличие склонений имени "толик" (регистронезависимо)
-	if h.containsTolikVariation(msg.Text) {
-		log.Printf("Сообщение содержит обращение к Толику")
+	// Проверяем наличие склонений имени "жорик" (регистронезависимо)
+	if h.containsZhorikVariation(msg.Text) {
+		log.Printf("Сообщение содержит обращение к Жорику")
 		return true
 	}
 
@@ -225,26 +225,26 @@ func (h *WebhookHandler) isReplyToBot(msg *Message) bool {
 	return msg.ReplyToMessage.From.IsBot
 }
 
-// containsTolikVariation проверяет содержит ли текст любое склонение имени "толик"
-func (h *WebhookHandler) containsTolikVariation(text string) bool {
+// containsZhorikVariation проверяет содержит ли текст любое склонение имени "жорик"
+func (h *WebhookHandler) containsZhorikVariation(text string) bool {
 	if text == "" {
 		return false
 	}
 
 	lowerText := strings.ToLower(text)
 
-	// Список склонений имени "толик"
-	tolikVariations := []string{
-		"толик",   // именительный падеж
-		"толика",  // родительный падеж
-		"толику",  // дательный падеж
-		"толиком", // творительный падеж
-		"толике",  // предложный падеж
-		"толь",    // сокращение
-		"толя",    // альтернативная форма
+	// Список склонений имени "жорик"
+	zhorikVariations := []string{
+		"жорик",   // именительный падеж
+		"жорика",  // родительный падеж
+		"жорику",  // дательный падеж
+		"жориком", // творительный падеж
+		"жорике",  // предложный падеж
+		"жора",    // сокращение
+		"жорж",    // альтернативная форма
 	}
 
-	for _, variation := range tolikVariations {
+	for _, variation := range zhorikVariations {
 		if strings.Contains(lowerText, variation) {
 			return true
 		}

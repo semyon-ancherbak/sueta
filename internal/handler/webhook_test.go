@@ -57,7 +57,7 @@ func TestHandleWebhook(t *testing.T) {
 	mockRepo := NewMockRepository()
 
 	// Создаем handler (без LLM и Telegram клиентов для простого теста)
-	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Жорик")
 
 	// Подготавливаем тестовые данные
 	testUpdate := `{
@@ -111,7 +111,7 @@ func TestHandleWebhookInvalidJSON(t *testing.T) {
 	// Создаем mock repository
 	mockRepo := NewMockRepository()
 
-	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Жорик")
 
 	// Невалидный JSON
 	invalidJSON := `{"update_id": 123, "message": {invalid}`
@@ -135,7 +135,7 @@ func TestHandleWebhookInvalidJSON(t *testing.T) {
 func TestChatNotDuplicatedOnMultipleMessages(t *testing.T) {
 	// Создаем mock repository
 	mockRepo := NewMockRepository()
-	handler := NewWebhookHandler(mockRepo, nil, nil, "Толик")
+	handler := NewWebhookHandler(mockRepo, nil, nil, "Жорик")
 
 	// Первое сообщение
 	testUpdate1 := `{
