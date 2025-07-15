@@ -10,6 +10,16 @@ import (
 	"github.com/semyon-ancherbak/sueta/internal/models"
 )
 
+type Repository interface {
+	SaveChat(ctx context.Context, chat *models.ChatDocument) error
+	SaveMessage(ctx context.Context, message *models.MessageDocument) error
+	ChatExists(ctx context.Context, chatID int64) (bool, error)
+	UpdateExists(ctx context.Context, updateID int) (bool, error)
+	GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error)
+	GetLastMessages(ctx context.Context, chatID int64, limit int) ([]*models.MessageDocument, error)
+	Close(ctx context.Context) error
+}
+
 // SQLiteRepository реализация Repository для SQLite
 type SQLiteRepository struct {
 	db *sql.DB
