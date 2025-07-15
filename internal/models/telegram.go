@@ -33,5 +33,4 @@ type MessageDocument struct {
 	UpdateID  int                `bson:"update_id" json:"update_id"`
 	IsBot     bool               `bson:"is_bot" json:"is_bot"`
 	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	Score     float64            `bson:"score,omitempty" json:"score,omitempty"` // Для полнотекстового поиска
 }

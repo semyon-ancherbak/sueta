@@ -15,7 +15,7 @@ type Repository interface {
 	SaveMessage(ctx context.Context, message *models.MessageDocument) error
 	ChatExists(ctx context.Context, chatID int64) (bool, error)
 	GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error)
-	SearchRelevantMessages(ctx context.Context, chatID int64, query string, limit int, excludeDays int) ([]*models.MessageDocument, error)
+	GetLastMessages(ctx context.Context, chatID int64, limit int) ([]*models.MessageDocument, error)
 	Close(ctx context.Context) error
 }
 
@@ -181,38 +181,19 @@ func (r *MongoRepository) GetRecentMessages(
 	return messages, nil
 }
 
-// SearchRelevantMessages выполняет полнотекстовый поиск релевантных сообщений в чате
-func (r *MongoRepository) SearchRelevantMessages(
+// GetLastMessages получает последние N сообщений из чата
+func (r *MongoRepository) GetLastMessages(
 	ctx context.Context,
 	chatID int64,
-	query string,
 	limit int,
-	excludeDays int,
 ) ([]*models.MessageDocument, error) {
-	if query == "" {
-		return []*models.MessageDocument{}, nil
-	}
-
-	// Создаем фильтр для поиска в конкретном чате с текстовым поиском
 	filter := bson.M{
 		"chat_id": chatID,
-		"$text": bson.M{
-			"$search": query,
-		},
-		// Исключаем недавние сообщения
-		"date": bson.M{
-			"$lt": time.Now().AddDate(0, 0, -excludeDays),
-		},
-		// Исключаем пустые сообщения
-		"text": bson.M{
-			"$ne": "",
-		},
 	}
 
-	// Сортируем по релевантности (score) и ограничиваем количество
+	// Сортируем по дате в убывающем порядке и ограничиваем количество
 	opts := options.Find().
-		SetProjection(bson.M{"score": bson.M{"$meta": "textScore"}}).
-		SetSort(bson.D{{Key: "score", Value: bson.M{"$meta": "textScore"}}}).
+		SetSort(bson.D{{Key: "date", Value: -1}}).
 		SetLimit(int64(limit))
 
 	cursor, err := r.messages.Find(ctx, filter, opts)
@@ -224,6 +205,12 @@ func (r *MongoRepository) SearchRelevantMessages(
 	var messages []*models.MessageDocument
 	if err := cursor.All(ctx, &messages); err != nil {
 		return nil, err
+	}
+
+	// Поскольку мы получили сообщения в убывающем порядке,
+	// нужно развернуть их обратно для правильной хронологии
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
 	}
 
 	return messages, nil

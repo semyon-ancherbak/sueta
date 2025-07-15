@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -16,9 +15,6 @@ type Config struct {
 	MongoURL      string
 	MongoDatabase string
 	OpenRouterKey string
-	// RAG настройки
-	RAGMaxRelevantMessages int
-	RAGRecentDaysExclude   int
 }
 
 func Load() (*Config, error) {
@@ -34,9 +30,6 @@ func Load() (*Config, error) {
 		MongoURL:      getEnvWithDefault("MONGO_URL", "mongodb://localhost:27017"),
 		MongoDatabase: getEnvWithDefault("MONGO_DATABASE", "sueta"),
 		OpenRouterKey: getEnv("OPENROUTER_API_KEY"),
-		// RAG настройки
-		RAGMaxRelevantMessages: getEnvWithDefaultInt("RAG_MAX_RELEVANT_MESSAGES", 5),
-		RAGRecentDaysExclude:   getEnvWithDefaultInt("RAG_RECENT_DAYS_EXCLUDE", 3),
 	}
 
 	if err := validateConfig(config); err != nil {
@@ -69,15 +62,6 @@ func getEnv(key string) string {
 func getEnvWithDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
-	}
-	return defaultValue
-}
-
-func getEnvWithDefaultInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
 	}
 	return defaultValue
 }
