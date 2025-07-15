@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Repository интерфейс для работы с данными
 type Repository interface {
 	SaveChat(ctx context.Context, chat *models.ChatDocument) error
 	SaveMessage(ctx context.Context, message *models.MessageDocument) error
@@ -27,14 +26,12 @@ type MongoRepository struct {
 	messages *mongo.Collection
 }
 
-// NewMongoRepository создает новый экземпляр MongoRepository
 func NewMongoRepository(ctx context.Context, mongoURL, dbName string) (*MongoRepository, error) {
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
 
-	// Проверяем соединение
 	if err := client.Ping(ctx, nil); err != nil {
 		return nil, err
 	}
@@ -50,7 +47,6 @@ func NewMongoRepository(ctx context.Context, mongoURL, dbName string) (*MongoRep
 		messages: messages,
 	}
 
-	// Создаем индексы
 	if err := repo.createIndexes(ctx); err != nil {
 		return nil, err
 	}
@@ -94,7 +90,6 @@ func (r *MongoRepository) createIndexes(ctx context.Context) error {
 	return nil
 }
 
-// SaveChat сохраняет чат в MongoDB
 func (r *MongoRepository) SaveChat(ctx context.Context, chat *models.ChatDocument) error {
 	now := time.Now()
 	chat.CreatedAt = now
@@ -122,7 +117,6 @@ func (r *MongoRepository) SaveChat(ctx context.Context, chat *models.ChatDocumen
 	return err
 }
 
-// SaveMessage сохраняет сообщение в MongoDB
 func (r *MongoRepository) SaveMessage(ctx context.Context, message *models.MessageDocument) error {
 	now := time.Now()
 	message.CreatedAt = now
@@ -131,7 +125,6 @@ func (r *MongoRepository) SaveMessage(ctx context.Context, message *models.Messa
 	return err
 }
 
-// ChatExists проверяет, существует ли чат
 func (r *MongoRepository) ChatExists(ctx context.Context, chatID int64) (bool, error) {
 	filter := bson.M{"chat_id": chatID}
 	count, err := r.chats.CountDocuments(ctx, filter)
@@ -141,12 +134,13 @@ func (r *MongoRepository) ChatExists(ctx context.Context, chatID int64) (bool, e
 	return count > 0, nil
 }
 
-// GetRecentMessages получает сообщения за последние N дней
-func (r *MongoRepository) GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error) {
-	// Вычисляем дату начала периода
+func (r *MongoRepository) GetRecentMessages(
+	ctx context.Context,
+	chatID int64,
+	days int,
+) ([]*models.MessageDocument, error) {
 	since := time.Now().AddDate(0, 0, -days)
 
-	// Создаем фильтр для поиска
 	filter := bson.M{
 		"chat_id": chatID,
 		"date": bson.M{
@@ -154,7 +148,6 @@ func (r *MongoRepository) GetRecentMessages(ctx context.Context, chatID int64, d
 		},
 	}
 
-	// Сортируем по дате (старые сообщения первыми)
 	opts := options.Find().SetSort(bson.D{{Key: "date", Value: 1}})
 
 	cursor, err := r.messages.Find(ctx, filter, opts)
@@ -171,7 +164,6 @@ func (r *MongoRepository) GetRecentMessages(ctx context.Context, chatID int64, d
 	return messages, nil
 }
 
-// Close закрывает соединение с MongoDB
 func (r *MongoRepository) Close(ctx context.Context) error {
 	return r.client.Disconnect(ctx)
 }

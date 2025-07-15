@@ -13,7 +13,6 @@ import (
 	"github.com/semyon-ancherbak/sueta/internal/repository"
 )
 
-// Client представляет клиент для работы с Telegram Bot API
 type Client struct {
 	token      string
 	baseURL    string
@@ -21,7 +20,6 @@ type Client struct {
 	repo       repository.Repository // Добавляем репозиторий для сохранения сообщений
 }
 
-// NewClient создает новый экземпляр Telegram клиента
 func NewClient(token string, repo repository.Repository) *Client {
 	return &Client{
 		token:   token,
@@ -85,47 +83,39 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, rep
 		request.ReplyToMessageID = replyToMessageID
 	}
 
-	// Конвертируем запрос в JSON
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("ошибка кодирования JSON: %w", err)
 	}
 
-	// Создаем HTTP запрос
 	url := c.baseURL + "/sendMessage"
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("ошибка создания запроса: %w", err)
 	}
 
-	// Устанавливаем заголовки
 	req.Header.Set("Content-Type", "application/json")
 
-	// Выполняем запрос
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("ошибка выполнения HTTP запроса: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Читаем ответ
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("ошибка чтения ответа: %w", err)
 	}
 
-	// Парсим ответ
 	var response SendMessageResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return fmt.Errorf("ошибка парсинга ответа: %w", err)
 	}
 
-	// Проверяем успешность отправки
 	if !response.OK {
-		return fmt.Errorf("Telegram API вернул ошибку %d: %s", response.ErrorCode, response.Description)
+		return fmt.Errorf("telegram API вернул ошибку %d: %s", response.ErrorCode, response.Description)
 	}
 
-	// Сохраняем отправленное сообщение в базу данных
 	if response.Result != nil {
 		if err := c.saveBotMessage(ctx, response.Result, text); err != nil {
 			// Логируем ошибку, но не возвращаем её, так как сообщение уже отправлено
@@ -136,7 +126,6 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, rep
 	return nil
 }
 
-// saveBotMessage сохраняет сообщение от бота в базу данных
 func (c *Client) saveBotMessage(ctx context.Context, msg *Message, text string) error {
 	if msg == nil || c.repo == nil {
 		return nil
@@ -167,8 +156,4 @@ func (c *Client) saveBotMessage(ctx context.Context, msg *Message, text string) 
 	fmt.Printf("Сохранено сообщение бота: ID=%d, ChatID=%d, Text=%s\n",
 		msg.MessageID, msg.Chat.ID, text)
 	return nil
-}
-
-func (c *Client) GetToken() string {
-	return c.token
 }
