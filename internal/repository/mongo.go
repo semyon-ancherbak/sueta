@@ -14,6 +14,7 @@ type Repository interface {
 	SaveChat(ctx context.Context, chat *models.ChatDocument) error
 	SaveMessage(ctx context.Context, message *models.MessageDocument) error
 	ChatExists(ctx context.Context, chatID int64) (bool, error)
+	UpdateExists(ctx context.Context, updateID int) (bool, error)
 	GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error)
 	GetLastMessages(ctx context.Context, chatID int64, limit int) ([]*models.MessageDocument, error)
 	Close(ctx context.Context) error
@@ -89,6 +90,15 @@ func (r *MongoRepository) createIndexes(ctx context.Context) error {
 		return err
 	}
 
+	// Индекс для быстрого поиска по update_id
+	updateIDIndex := mongo.IndexModel{
+		Keys: bson.D{{Key: "update_id", Value: 1}},
+	}
+
+	if _, err := r.messages.Indexes().CreateOne(ctx, updateIDIndex); err != nil {
+		return err
+	}
+
 	// Текстовый индекс для полнотекстового поиска по содержимому сообщений
 	textIndex := mongo.IndexModel{
 		Keys: bson.D{
@@ -138,13 +148,52 @@ func (r *MongoRepository) SaveMessage(ctx context.Context, message *models.Messa
 	now := time.Now()
 	message.CreatedAt = now
 
-	_, err := r.messages.InsertOne(ctx, message)
+	// Используем upsert для избежания дублирования сообщений
+	filter := bson.M{
+		"message_id": message.MessageID,
+		"chat_id":    message.ChatID,
+	}
+
+	update := bson.M{
+		"$setOnInsert": bson.M{
+			"message_id": message.MessageID,
+			"chat_id":    message.ChatID,
+			"text":       message.Text,
+			"date":       message.Date,
+			"update_id":  message.UpdateID,
+			"user_id":    message.UserID,
+			"username":   message.Username,
+			"first_name": message.FirstName,
+			"last_name":  message.LastName,
+			"is_bot":     message.IsBot,
+			"created_at": now,
+		},
+	}
+
+	opts := options.Update().SetUpsert(true)
+	result, err := r.messages.UpdateOne(ctx, filter, update, opts)
+
+	// Логируем, было ли сообщение вставлено или уже существовало
+	if err == nil && result.UpsertedCount == 0 {
+		// Сообщение уже существовало, пропускаем
+		return nil
+	}
+
 	return err
 }
 
 func (r *MongoRepository) ChatExists(ctx context.Context, chatID int64) (bool, error) {
 	filter := bson.M{"chat_id": chatID}
 	count, err := r.chats.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *MongoRepository) UpdateExists(ctx context.Context, updateID int) (bool, error) {
+	filter := bson.M{"update_id": updateID}
+	count, err := r.messages.CountDocuments(ctx, filter)
 	if err != nil {
 		return false, err
 	}

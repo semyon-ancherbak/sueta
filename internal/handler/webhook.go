@@ -122,8 +122,18 @@ func (h *WebhookHandler) processUpdate(update *TelegramUpdate) {
 		return
 	}
 
-	msg := update.Message
 	ctx := context.Background()
+
+	// Проверяем, не обрабатывали ли мы уже этот update
+	exists, err := h.repo.UpdateExists(ctx, update.UpdateID)
+	if err != nil {
+		log.Printf("Ошибка проверки существования update: %v", err)
+	} else if exists {
+		log.Printf("Update %d уже был обработан, пропускаем", update.UpdateID)
+		return
+	}
+
+	msg := update.Message
 
 	if err := h.saveChat(ctx, msg.Chat, msg.From); err != nil {
 		log.Printf("Ошибка сохранения чата: %v", err)
@@ -228,8 +238,9 @@ func (h *WebhookHandler) handleBotMessage(ctx context.Context, msg *Message) err
 
 	log.Printf("Найдено %d последних сообщений для контекста", len(messages))
 
-	// Генерируем ответ с использованием простого контекста
-	response, err := h.llmClient.GenerateResponse(ctx, messages, msg.Text)
+	// Генерируем ответ с использованием только истории сообщений
+	// (текущее сообщение уже сохранено и включено в messages)
+	response, err := h.llmClient.GenerateResponse(ctx, messages, "")
 	if err != nil {
 		return fmt.Errorf("ошибка генерации ответа: %w", err)
 	}
