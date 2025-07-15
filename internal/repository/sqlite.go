@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/semyon-ancherbak/sueta/internal/models"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/semyon-ancherbak/sueta/internal/models"
 )
 
 // SQLiteRepository реализация Repository для SQLite
@@ -97,7 +97,7 @@ func (r *SQLiteRepository) createTables() error {
 
 func (r *SQLiteRepository) SaveChat(ctx context.Context, chat *models.ChatDocument) error {
 	now := time.Now()
-	
+
 	// Используем INSERT OR REPLACE для избежания дублирования
 	query := `
 	INSERT OR REPLACE INTO chats (
@@ -115,7 +115,7 @@ func (r *SQLiteRepository) SaveChat(ctx context.Context, chat *models.ChatDocume
 
 func (r *SQLiteRepository) SaveMessage(ctx context.Context, message *models.MessageDocument) error {
 	now := time.Now()
-	
+
 	// Используем INSERT OR IGNORE для избежания дублирования сообщений
 	query := `
 	INSERT OR IGNORE INTO messages (
@@ -157,7 +157,7 @@ func (r *SQLiteRepository) GetRecentMessages(
 	days int,
 ) ([]*models.MessageDocument, error) {
 	since := time.Now().AddDate(0, 0, -days)
-	
+
 	query := `
 	SELECT id, message_id, chat_id, user_id, username, first_name, last_name,
 		   text, date, update_id, is_bot, is_addressed_to_bot, created_at
