@@ -156,17 +156,18 @@ func (r *MongoRepository) SaveMessage(ctx context.Context, message *models.Messa
 
 	update := bson.M{
 		"$setOnInsert": bson.M{
-			"message_id": message.MessageID,
-			"chat_id":    message.ChatID,
-			"text":       message.Text,
-			"date":       message.Date,
-			"update_id":  message.UpdateID,
-			"user_id":    message.UserID,
-			"username":   message.Username,
-			"first_name": message.FirstName,
-			"last_name":  message.LastName,
-			"is_bot":     message.IsBot,
-			"created_at": now,
+			"message_id":          message.MessageID,
+			"chat_id":             message.ChatID,
+			"text":                message.Text,
+			"date":                message.Date,
+			"update_id":           message.UpdateID,
+			"user_id":             message.UserID,
+			"username":            message.Username,
+			"first_name":          message.FirstName,
+			"last_name":           message.LastName,
+			"is_bot":              message.IsBot,
+			"is_addressed_to_bot": message.IsAddressedToBot,
+			"created_at":          now,
 		},
 	}
 

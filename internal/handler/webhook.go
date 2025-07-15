@@ -188,15 +188,25 @@ func (h *WebhookHandler) isMessageForBot(msg *Message) bool {
 	if msg == nil {
 		return false
 	}
+
+	// 1. Ответ на сообщение бота - точно адресовано
 	if h.isReplyToBot(msg) {
 		log.Printf("Сообщение является ответом на сообщение бота")
 		return true
 	}
-	// Проверяем наличие склонений имени "жорик" (регистронезависимо)
+
+	// 2. Упоминание имени бота - точно адресовано
 	if h.containsBotName(msg.Text) {
 		log.Printf("Сообщение содержит обращение к Жорику")
 		return true
 	}
+
+	// 3. В приватном чате все сообщения адресованы боту
+	if msg.Chat != nil && msg.Chat.Type == "private" {
+		log.Printf("Приватный чат - сообщение адресовано боту")
+		return true
+	}
+
 	return false
 }
 
@@ -295,12 +305,16 @@ func (h *WebhookHandler) saveMessage(ctx context.Context, update *TelegramUpdate
 		return nil
 	}
 
+	// Определяем, адресовано ли сообщение боту
+	isAddressedToBot := h.isMessageForBot(msg)
+
 	messageDoc := &models.MessageDocument{
-		MessageID: msg.MessageID,
-		ChatID:    msg.Chat.ID,
-		Text:      msg.Text,
-		Date:      time.Unix(msg.Date, 0),
-		UpdateID:  update.UpdateID,
+		MessageID:        msg.MessageID,
+		ChatID:           msg.Chat.ID,
+		Text:             msg.Text,
+		Date:             time.Unix(msg.Date, 0),
+		UpdateID:         update.UpdateID,
+		IsAddressedToBot: isAddressedToBot,
 	}
 
 	if msg.From != nil {
@@ -315,6 +329,7 @@ func (h *WebhookHandler) saveMessage(ctx context.Context, update *TelegramUpdate
 		return fmt.Errorf("ошибка сохранения сообщения: %w", err)
 	}
 
-	log.Printf("Сохранено сообщение: ID=%d, ChatID=%d", msg.MessageID, msg.Chat.ID)
+	log.Printf("Сохранено сообщение: ID=%d, ChatID=%d, адресовано боту=%t",
+		msg.MessageID, msg.Chat.ID, isAddressedToBot)
 	return nil
 }

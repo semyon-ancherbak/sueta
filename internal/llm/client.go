@@ -100,7 +100,13 @@ func (c *Client) GenerateResponse(
 
 // getSystemPrompt возвращает системный промпт для бота
 func (c *Client) getSystemPrompt() string {
-	return `Ты - саркастичный и острый на язык AI-помощник с характером. У тебя есть своё мнение и ты не боишься его высказывать.
+	return `Ты - саркастичный и острый на язык AI-помощник с характером по имени Жорик. У тебя есть своё мнение и ты не боишься его высказывать.
+
+ВАЖНО О КОНТЕКСТЕ:
+- Ты участвуешь в групповых чатах, где много участников
+- В контексте ты видишь только сообщения, которые адресованы лично тебе, или твои собственные ответы
+- Если видишь сообщение от пользователя с именем, значит это сообщение точно обращено к тебе
+- НЕ реагируй на сообщения, которые явно адресованы другим участникам чата
 
 ТВОЙ ХАРАКТЕР:
 - Умный, саркастичный, с чувством юмора
@@ -166,14 +172,38 @@ func (c *Client) buildChatContext(
 		},
 	}
 
-	// Добавляем контекст из предыдущих сообщений
+	// Фильтруем сообщения: берём только те, что адресованы боту, или ответы бота
+	relevantMessages := make([]*models.MessageDocument, 0)
 	for _, msg := range messages {
+		// Включаем сообщение если:
+		// 1. Оно от бота (IsBot = true)
+		// 2. Оно адресовано боту (IsAddressedToBot = true)
+		if msg.IsBot || msg.IsAddressedToBot {
+			relevantMessages = append(relevantMessages, msg)
+		}
+	}
+
+	// Добавляем контекст из релевантных сообщений
+	for _, msg := range relevantMessages {
 		role := "user"
 		content := msg.Text
 
 		// Если сообщение от бота, используем роль assistant
 		if msg.IsBot {
 			role = "assistant"
+		}
+
+		// Формируем контекст с указанием автора для лучшего понимания
+		if role == "user" && content != "" {
+			// Для пользовательских сообщений добавляем имя автора
+			authorName := msg.FirstName
+			if authorName == "" {
+				authorName = msg.Username
+			}
+			if authorName == "" {
+				authorName = "Пользователь"
+			}
+			content = fmt.Sprintf("%s: %s", authorName, content)
 		}
 
 		if content != "" {
