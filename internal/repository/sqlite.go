@@ -25,7 +25,7 @@ type SQLiteRepository struct {
 	db *sql.DB
 }
 
-func NewSQLiteRepository(dbPath string) (*SQLiteRepository, error) {
+func NewRepository(dbPath string) (*SQLiteRepository, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка открытия базы данных: %w", err)
