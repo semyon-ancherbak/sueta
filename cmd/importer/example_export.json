@@ -1,0 +1,109 @@
+{
+ "name": "Тестовый чат",
+ "type": "private_supergroup",
+ "id": 1698320716,
+ "messages": [
+  {
+   "id": 1,
+   "type": "service",
+   "date": "2021-05-09T12:07:03",
+   "date_unixtime": "1620547623",
+   "actor": "Админ",
+   "actor_id": "user123456789",
+   "action": "create_group",
+   "title": "Тестовый чат",
+   "members": [
+    "Админ",
+    "Пользователь1",
+    "Пользователь2"
+   ],
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 2,
+   "type": "message",
+   "date": "2021-05-09T12:08:00",
+   "date_unixtime": "1620547680",
+   "from": "Пользователь1",
+   "from_id": "user987654321",
+   "text": "Привет всем! Как дела?",
+   "text_entities": []
+  },
+  {
+   "id": 3,
+   "type": "message",
+   "date": "2021-05-09T12:09:15",
+   "date_unixtime": "1620547755",
+   "from": "Пользователь2",
+   "from_id": "user111222333",
+   "text": [
+    {
+     "type": "plain",
+     "text": "Привет! У меня все хорошо. Кстати, вы знаете что-то про "
+    },
+    {
+     "type": "bold",
+     "text": "Docker"
+    },
+    {
+     "type": "plain",
+     "text": "? Мне нужно настроить контейнеризацию."
+    }
+   ],
+   "text_entities": []
+  },
+  {
+   "id": 4,
+   "type": "message",
+   "date": "2021-05-09T13:15:30",
+   "date_unixtime": "1620551730",
+   "from": "Админ",
+   "from_id": "user123456789",
+   "text": "Docker - это отличная технология для контейнеризации приложений. Рекомендую начать с docker-compose для многоконтейнерных приложений.",
+   "text_entities": []
+  },
+  {
+   "id": 5,
+   "type": "message",
+   "date": "2021-05-10T10:30:00",
+   "date_unixtime": "1620638200",
+   "from": "Пользователь1",
+   "from_id": "user987654321",
+   "text": "Спасибо за совет! А есть ли хорошие туториалы по Go и Docker?",
+   "text_entities": []
+  },
+  {
+   "id": 6,
+   "type": "message",
+   "date": "2021-05-10T11:45:00",
+   "date_unixtime": "1620642700",
+   "from": "Пользователь2",
+   "from_id": "user111222333",
+   "text": "Да, на официальном сайте Docker есть отличная документация. Также рекомендую посмотреть на Multi-stage builds для Go приложений.",
+   "text_entities": []
+  },
+  {
+   "id": 7,
+   "type": "service",
+   "date": "2021-05-11T09:00:00",
+   "date_unixtime": "1620720000",
+   "actor": "Админ",
+   "actor_id": "user123456789",
+   "action": "edit_group_title",
+   "title": "Docker и Go разработчики",
+   "text": "",
+   "text_entities": []
+  },
+  {
+   "id": 8,
+   "type": "message",
+   "date": "2024-07-15T15:30:00",
+   "date_unixtime": "1721047800",
+   "from": "Жорик",
+   "from_id": "user444555666",
+   "text": "Привет! Помнишь, мы обсуждали Docker для Go? Как дела с проектом?",
+   "text_entities": []
+  }
+ ]
+}
