@@ -250,7 +250,7 @@ func (h *WebhookHandler) handleBotMessage(ctx context.Context, msg *Message) err
 
 	// Генерируем ответ с использованием только истории сообщений
 	// (текущее сообщение уже сохранено и включено в messages)
-	response, err := h.llmClient.GenerateResponse(ctx, messages, "")
+	response, err := h.llmClient.GenerateResponse(ctx, messages, "", "")
 	if err != nil {
 		return fmt.Errorf("ошибка генерации ответа: %w", err)
 	}

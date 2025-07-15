@@ -71,6 +71,7 @@ func (c *Client) GenerateResponse(
 	ctx context.Context,
 	messages []*models.MessageDocument,
 	userMessage string,
+	authorName string,
 ) (string, error) {
 	// Используем только последние 100 сообщений для контекста
 	recentMessages := messages
@@ -79,7 +80,7 @@ func (c *Client) GenerateResponse(
 	}
 
 	// Формируем контекст из последних сообщений
-	chatMessages := c.buildChatContext(recentMessages, userMessage)
+	chatMessages := c.buildChatContext(recentMessages, userMessage, authorName)
 
 	request := ChatRequest{
 		Model:    c.model,
@@ -102,11 +103,22 @@ func (c *Client) GenerateResponse(
 func (c *Client) getSystemPrompt() string {
 	return `Ты - саркастичный и острый на язык AI-помощник с характером по имени Жорик. У тебя есть своё мнение и ты не боишься его высказывать.
 
-ВАЖНО О КОНТЕКСТЕ:
-- Ты участвуешь в групповых чатах, где много участников
-- В контексте ты видишь только сообщения, которые адресованы лично тебе, или твои собственные ответы
-- Если видишь сообщение от пользователя с именем, значит это сообщение точно обращено к тебе
-- НЕ реагируй на сообщения, которые явно адресованы другим участникам чата
+ВАЖНО О КОНТЕКСТЕ И ГРУППОВЫХ ЧАТАХ:
+- Ты участвуешь в групповых чатах Telegram, где много участников
+- В контексте ты видишь сообщения в формате "Имя_автора: текст_сообщения"
+- ВСЕГДА обращай внимание на имя автора перед двоеточием - это разные люди!
+- Каждое "Имя:" означает нового участника беседы
+- Ты можешь ссылаться на конкретных людей по их именам
+- Понимай динамику групповой беседы: кто кому отвечает, кто о чём говорит
+- Твои сообщения НЕ имеют префикса с именем, они идут без автора
+
+ПРИМЕРЫ ПОНИМАНИЯ КОНТЕКСТА:
+- "Алексей: Как дела?" - сообщение от Алексея
+- "Мария: @Алексей, всё хорошо!" - Мария отвечает Алексею  
+- "Сергей: А что по поводу встречи?" - новый участник Сергей спрашивает о встрече
+- "Твой ответ без префикса" - так выглядят твои сообщения
+
+ПОМНИ: разные имена = разные люди! Следи за тем, кто что говорит.
 
 ТВОЙ ХАРАКТЕР:
 - Умный, саркастичный, с чувством юмора
@@ -161,6 +173,7 @@ func (c *Client) getSystemPrompt() string {
 func (c *Client) buildChatContext(
 	messages []*models.MessageDocument,
 	userMessage string,
+	authorName string,
 ) []Message {
 	// Используем встроенный промпт
 	systemPrompt := c.getSystemPrompt()
@@ -196,14 +209,14 @@ func (c *Client) buildChatContext(
 		// Формируем контекст с указанием автора для лучшего понимания
 		if role == "user" && content != "" {
 			// Для пользовательских сообщений добавляем имя автора
-			authorName := msg.FirstName
-			if authorName == "" {
-				authorName = msg.Username
+			msgAuthorName := msg.FirstName
+			if msgAuthorName == "" {
+				msgAuthorName = msg.Username
 			}
-			if authorName == "" {
-				authorName = "Пользователь"
+			if msgAuthorName == "" {
+				msgAuthorName = "Пользователь"
 			}
-			content = fmt.Sprintf("%s: %s", authorName, content)
+			content = fmt.Sprintf("%s: %s", msgAuthorName, content)
 		}
 
 		if content != "" {
@@ -214,10 +227,15 @@ func (c *Client) buildChatContext(
 		}
 	}
 
+	// Добавляем текущее сообщение с именем автора (только если оно есть)
 	if userMessage != "" {
+		if authorName == "" {
+			authorName = "Пользователь"
+		}
+		content := fmt.Sprintf("%s: %s", authorName, userMessage)
 		chatMessages = append(chatMessages, Message{
 			Role:    "user",
-			Content: userMessage,
+			Content: content,
 		})
 	}
 
