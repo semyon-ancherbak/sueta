@@ -93,6 +93,33 @@ func (c *Client) GenerateResponse(
 	return response.Choices[0].Message.Content, nil
 }
 
+// GenerateResponseWithRAG генерирует ответ используя RAG (с релевантными старыми сообщениями)
+func (c *Client) GenerateResponseWithRAG(
+	ctx context.Context,
+	recentMessages []*models.MessageDocument,
+	relevantMessages []*models.MessageDocument,
+	userMessage string,
+) (string, error) {
+	// Формируем контекст с учетом релевантных сообщений
+	chatMessages := c.buildChatContextWithRAG(recentMessages, relevantMessages, userMessage)
+
+	request := ChatRequest{
+		Model:    c.model,
+		Messages: chatMessages,
+	}
+
+	response, err := c.makeRequest(ctx, request)
+	if err != nil {
+		return "", fmt.Errorf("ошибка выполнения запроса к LLM: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("LLM вернул пустой ответ")
+	}
+
+	return response.Choices[0].Message.Content, nil
+}
+
 // buildChatContext формирует контекст для LLM из сообщений
 func (c *Client) buildChatContext(
 	messages []*models.MessageDocument,
@@ -128,6 +155,74 @@ func (c *Client) buildChatContext(
 		}
 	}
 
+	if userMessage != "" {
+		chatMessages = append(chatMessages, Message{
+			Role:    "user",
+			Content: userMessage,
+		})
+	}
+
+	return chatMessages
+}
+
+// buildChatContextWithRAG формирует контекст для LLM с учетом релевантных старых сообщений
+func (c *Client) buildChatContextWithRAG(
+	recentMessages []*models.MessageDocument,
+	relevantMessages []*models.MessageDocument,
+	userMessage string,
+) []Message {
+	prompt, err := os.ReadFile("prompt.txt")
+	if err != nil {
+		fmt.Printf("Ошибка чтения prompt.txt: %v\n", err)
+		return nil
+	}
+
+	// Базовый системный промпт
+	systemPrompt := string(prompt)
+
+	// Если есть релевантные сообщения, добавляем их в системный промпт
+	if len(relevantMessages) > 0 {
+		systemPrompt += "\n\nРелевантная информация из истории переписки:\n"
+		for _, msg := range relevantMessages {
+			if msg.Text != "" {
+				author := "Пользователь"
+				if msg.IsBot {
+					author = "Ты"
+				} else if msg.FirstName != "" {
+					author = msg.FirstName
+				}
+				systemPrompt += fmt.Sprintf("- %s: %s\n", author, msg.Text)
+			}
+		}
+		systemPrompt += "\nИспользуй эту информацию для более контекстного ответа, если она релевантна текущему вопросу."
+	}
+
+	chatMessages := []Message{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
+	}
+
+	// Добавляем контекст из недавних сообщений
+	for _, msg := range recentMessages {
+		role := "user"
+		content := msg.Text
+
+		// Если сообщение от бота, используем роль assistant
+		if msg.IsBot {
+			role = "assistant"
+		}
+
+		if content != "" {
+			chatMessages = append(chatMessages, Message{
+				Role:    role,
+				Content: content,
+			})
+		}
+	}
+
+	// Добавляем текущее сообщение пользователя
 	if userMessage != "" {
 		chatMessages = append(chatMessages, Message{
 			Role:    "user",

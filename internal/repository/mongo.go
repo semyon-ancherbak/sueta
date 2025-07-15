@@ -15,6 +15,7 @@ type Repository interface {
 	SaveMessage(ctx context.Context, message *models.MessageDocument) error
 	ChatExists(ctx context.Context, chatID int64) (bool, error)
 	GetRecentMessages(ctx context.Context, chatID int64, days int) ([]*models.MessageDocument, error)
+	SearchRelevantMessages(ctx context.Context, chatID int64, query string, limit int, excludeDays int) ([]*models.MessageDocument, error)
 	Close(ctx context.Context) error
 }
 
@@ -87,6 +88,22 @@ func (r *MongoRepository) createIndexes(ctx context.Context) error {
 	if _, err := r.messages.Indexes().CreateOne(ctx, chatIDIndex); err != nil {
 		return err
 	}
+
+	// Текстовый индекс для полнотекстового поиска по содержимому сообщений
+	textIndex := mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "text", Value: "text"},
+			{Key: "first_name", Value: "text"},
+			{Key: "last_name", Value: "text"},
+			{Key: "username", Value: "text"},
+		},
+		Options: options.Index().SetDefaultLanguage("russian"),
+	}
+
+	if _, err := r.messages.Indexes().CreateOne(ctx, textIndex); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -149,6 +166,54 @@ func (r *MongoRepository) GetRecentMessages(
 	}
 
 	opts := options.Find().SetSort(bson.D{{Key: "date", Value: 1}})
+
+	cursor, err := r.messages.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []*models.MessageDocument
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+// SearchRelevantMessages выполняет полнотекстовый поиск релевантных сообщений в чате
+func (r *MongoRepository) SearchRelevantMessages(
+	ctx context.Context,
+	chatID int64,
+	query string,
+	limit int,
+	excludeDays int,
+) ([]*models.MessageDocument, error) {
+	if query == "" {
+		return []*models.MessageDocument{}, nil
+	}
+
+	// Создаем фильтр для поиска в конкретном чате с текстовым поиском
+	filter := bson.M{
+		"chat_id": chatID,
+		"$text": bson.M{
+			"$search": query,
+		},
+		// Исключаем недавние сообщения
+		"date": bson.M{
+			"$lt": time.Now().AddDate(0, 0, -excludeDays),
+		},
+		// Исключаем пустые сообщения
+		"text": bson.M{
+			"$ne": "",
+		},
+	}
+
+	// Сортируем по релевантности (score) и ограничиваем количество
+	opts := options.Find().
+		SetProjection(bson.M{"score": bson.M{"$meta": "textScore"}}).
+		SetSort(bson.D{{Key: "score", Value: bson.M{"$meta": "textScore"}}}).
+		SetLimit(int64(limit))
 
 	cursor, err := r.messages.Find(ctx, filter, opts)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/semyon-ancherbak/sueta/internal/config"
 	"github.com/semyon-ancherbak/sueta/internal/llm"
 	"github.com/semyon-ancherbak/sueta/internal/models"
+	"github.com/semyon-ancherbak/sueta/internal/rag"
 	"github.com/semyon-ancherbak/sueta/internal/repository"
 	"github.com/semyon-ancherbak/sueta/internal/telegram"
 )
@@ -48,11 +49,12 @@ type Chat struct {
 }
 
 type WebhookHandler struct {
-	repo      repository.Repository
-	llmClient *llm.Client
-	tgClient  *telegram.Client
-	botName   string
-	cfg       *config.Config
+	repo       repository.Repository
+	llmClient  *llm.Client
+	tgClient   *telegram.Client
+	ragService *rag.Service
+	botName    string
+	cfg        *config.Config
 }
 
 func NewWebhookHandler(
@@ -63,11 +65,12 @@ func NewWebhookHandler(
 	config *config.Config,
 ) *WebhookHandler {
 	return &WebhookHandler{
-		repo:      repo,
-		llmClient: llmClient,
-		tgClient:  tgClient,
-		botName:   botName,
-		cfg:       config,
+		repo:       repo,
+		llmClient:  llmClient,
+		tgClient:   tgClient,
+		ragService: rag.NewService(repo),
+		botName:    botName,
+		cfg:        config,
 	}
 }
 
@@ -220,17 +223,38 @@ func (h *WebhookHandler) containsBotName(text string) bool {
 }
 
 func (h *WebhookHandler) handleBotMessage(ctx context.Context, msg *Message) error {
-	recentMessages, err := h.repo.GetRecentMessages(ctx, msg.Chat.ID, 3)
+	// Используем RAG для получения релевантного контекста
+	recentMessages, relevantMessages, err := h.ragService.RetrieveRelevantContext(
+		ctx,
+		msg.Chat.ID,
+		msg.Text,
+		h.cfg.RAGMaxRelevantMessages, // используем настройку из конфига
+		h.cfg.RAGRecentDaysExclude,   // используем настройку из конфига
+	)
 	if err != nil {
-		return fmt.Errorf("ошибка получения истории сообщений: %w", err)
+		return fmt.Errorf("ошибка получения контекста: %w", err)
 	}
-	log.Printf("Найдено %d сообщений за последние 3 дня", len(recentMessages))
 
-	response, err := h.llmClient.GenerateResponse(ctx, recentMessages, msg.Text)
-	if err != nil {
-		return fmt.Errorf("ошибка генерации ответа LLM: %w", err)
+	log.Printf("Найдено %d недавних сообщений и %d релевантных сообщений",
+		len(recentMessages), len(relevantMessages))
+
+	var response string
+
+	// Если есть релевантные сообщения, используем RAG
+	if len(relevantMessages) > 0 {
+		response, err = h.llmClient.GenerateResponseWithRAG(ctx, recentMessages, relevantMessages, msg.Text)
+		if err != nil {
+			return fmt.Errorf("ошибка генерации ответа с RAG: %w", err)
+		}
+		log.Printf("LLM ответ с RAG: %s", response)
+	} else {
+		// Иначе используем обычный метод
+		response, err = h.llmClient.GenerateResponse(ctx, recentMessages, msg.Text)
+		if err != nil {
+			return fmt.Errorf("ошибка генерации обычного ответа: %w", err)
+		}
+		log.Printf("LLM обычный ответ: %s", response)
 	}
-	log.Printf("LLM ответ: %s", response)
 
 	if err := h.tgClient.SendMessage(ctx, msg.Chat.ID, response, msg.MessageID); err != nil {
 		return fmt.Errorf("ошибка отправки сообщения в Telegram: %w", err)
