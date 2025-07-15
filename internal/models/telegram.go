@@ -2,36 +2,34 @@ package models
 
 import (
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// ChatDocument представляет документ чата в MongoDB
+// ChatDocument представляет запись чата в SQLite
 type ChatDocument struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ChatID    int64              `bson:"chat_id" json:"chat_id"`
-	Type      string             `bson:"type" json:"type"`
-	Title     string             `bson:"title,omitempty" json:"title,omitempty"`
-	Username  string             `bson:"username,omitempty" json:"username,omitempty"`
-	FirstName string             `bson:"first_name,omitempty" json:"first_name,omitempty"`
-	LastName  string             `bson:"last_name,omitempty" json:"last_name,omitempty"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
+	ID        int64     `db:"id" json:"id"`
+	ChatID    int64     `db:"chat_id" json:"chat_id"`
+	Type      string    `db:"type" json:"type"`
+	Title     string    `db:"title" json:"title"`
+	Username  string    `db:"username" json:"username"`
+	FirstName string    `db:"first_name" json:"first_name"`
+	LastName  string    `db:"last_name" json:"last_name"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// MessageDocument представляет документ сообщения в MongoDB
+// MessageDocument представляет запись сообщения в SQLite
 type MessageDocument struct {
-	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	MessageID        int                `bson:"message_id" json:"message_id"`
-	ChatID           int64              `bson:"chat_id" json:"chat_id"`
-	UserID           int64              `bson:"user_id,omitempty" json:"user_id,omitempty"`
-	Username         string             `bson:"username,omitempty" json:"username,omitempty"`
-	FirstName        string             `bson:"first_name,omitempty" json:"first_name,omitempty"`
-	LastName         string             `bson:"last_name,omitempty" json:"last_name,omitempty"`
-	Text             string             `bson:"text,omitempty" json:"text,omitempty"`
-	Date             time.Time          `bson:"date" json:"date"`
-	UpdateID         int                `bson:"update_id" json:"update_id"`
-	IsBot            bool               `bson:"is_bot" json:"is_bot"`
-	IsAddressedToBot bool               `bson:"is_addressed_to_bot" json:"is_addressed_to_bot"` // Флаг: адресовано ли сообщение боту
-	CreatedAt        time.Time          `bson:"created_at" json:"created_at"`
+	ID               int64     `db:"id" json:"id"`
+	MessageID        int       `db:"message_id" json:"message_id"`
+	ChatID           int64     `db:"chat_id" json:"chat_id"`
+	UserID           int64     `db:"user_id" json:"user_id"`
+	Username         string    `db:"username" json:"username"`
+	FirstName        string    `db:"first_name" json:"first_name"`
+	LastName         string    `db:"last_name" json:"last_name"`
+	Text             string    `db:"text" json:"text"`
+	Date             time.Time `db:"date" json:"date"`
+	UpdateID         int       `db:"update_id" json:"update_id"`
+	IsBot            bool      `db:"is_bot" json:"is_bot"`
+	IsAddressedToBot bool      `db:"is_addressed_to_bot" json:"is_addressed_to_bot"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 }

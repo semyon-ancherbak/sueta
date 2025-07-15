@@ -24,16 +24,16 @@ func main() {
 	log.Printf("Конфигурация загружена")
 
 	ctx := context.Background()
-	repo, err := repository.NewMongoRepository(ctx, cfg.MongoURL, cfg.MongoDatabase)
+	repo, err := repository.NewRepository(cfg.DatabasePath)
 	if err != nil {
-		log.Fatalf("Ошибка подключения к MongoDB: %v", err)
+		log.Fatalf("Ошибка подключения к базе данных: %v", err)
 	}
 	defer func() {
 		if err := repo.Close(ctx); err != nil {
-			log.Printf("Ошибка закрытия соединения с MongoDB: %v", err)
+			log.Printf("Ошибка закрытия соединения с базой данных: %v", err)
 		}
 	}()
-	log.Println("Подключение к MongoDB установлено")
+	log.Println("Подключение к базе данных установлено")
 
 	llmClient := llm.NewClient(cfg.OpenRouterKey)
 	log.Println("LLM клиент инициализирован")

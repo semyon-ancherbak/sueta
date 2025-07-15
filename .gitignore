@@ -18,6 +18,13 @@ go.work
 # Environment variables
 .env
 
+# SQLite database files
+*.db
+data/
+
+# Bot binary
+bot
+
 # IDE
 .vscode/
 .idea/

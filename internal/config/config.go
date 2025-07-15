@@ -12,8 +12,7 @@ type Config struct {
 	Port          string
 	TelegramToken string
 	WebhookURL    string
-	MongoURL      string
-	MongoDatabase string
+	DatabasePath  string
 	OpenRouterKey string
 }
 
@@ -27,8 +26,7 @@ func Load() (*Config, error) {
 		Port:          getEnvWithDefault("PORT", "8080"),
 		TelegramToken: getEnv("TELEGRAM_TOKEN"),
 		WebhookURL:    getEnv("WEBHOOK_URL"),
-		MongoURL:      getEnvWithDefault("MONGO_URL", "mongodb://localhost:27017"),
-		MongoDatabase: getEnvWithDefault("MONGO_DATABASE", "sueta"),
+		DatabasePath:  getEnvWithDefault("DATABASE_PATH", "./data/sueta.db"),
 		OpenRouterKey: getEnv("OPENROUTER_API_KEY"),
 	}
 
